@@ -5,6 +5,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 
 export const hostsRouter: Router = Router();
 
+hostsRouter.get('/', requireAuth, asyncHandler(hostController.list));
 hostsRouter.get(
   '/me/pending',
   requireAuth,

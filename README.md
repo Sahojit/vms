@@ -5,9 +5,8 @@ full design (stack, data model, state machine, flows, complexity analysis).
 
 ## Status
 
-Phases 1-4 (scaffold/infra, data layer, API core, jobs/real-time) complete. Later phases add
-frontend screens, tests, and docs — see [CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the
-phase plan.
+Phases 1-5 (scaffold/infra, data layer, API core, jobs/real-time, frontend) complete. Later phases
+add tests and docs polish — see [CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the phase plan.
 
 ## API
 
@@ -33,6 +32,18 @@ running. Every visit event (`visit.created`, `visit.updated`, `visit.overstay`, 
 is pushed live over Socket.IO — rooms `user:{id}` and `office:{id}`, Redis adapter so it works
 across multiple API instances. Notifications fan out to three channels: an in-app `Notification`
 row, email via Mailpit (http://localhost:8025 to view), and a console-logged SMS mock.
+
+## Frontend
+
+`apps/web` (React + Vite + Tailwind + TanStack Query + React Router + React Hook Form + Zod) —
+hand-rolled Tailwind UI primitives (`src/components/ui`) in place of the shadcn CLI (no network
+prompt available in this environment), same navy palette and API surface. Screens: Login,
+Host → Invite Visitors / Approvals inbox / My Visits, Front Desk → Visitors Board (cursor-paginated
+infinite scroll, live socket updates, Guest Details drawer) / Walk-in registration (webcam capture
+with retake, file-upload fallback, existing-visitor autofill), Kiosk QR check-in
+(`html5-qrcode`), the public Visitor e-pass page (`/pass/:token`, printable), and Admin →
+Policies / Watchlist / Analytics (Recharts) / Audit Log. Every mutation shows a toast (`sonner`);
+lists have skeletons and empty states; destructive actions confirm first.
 
 ## Monorepo layout
 

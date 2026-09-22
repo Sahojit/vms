@@ -92,3 +92,27 @@ implementation detail.
   `visit.updated`. Also manually enqueued an `expire-pending` job at a 1s delay against a real
   seeded visit and confirmed the worker flipped it to `EXPIRED` and logged "Job completed" —
   the full delayed-job path works, not just the immediate one exercised by curl in Phase 3.
+
+## Phase 5
+
+- **No shadcn/ui CLI run** — `npx shadcn init/add` prompts interactively and needs network access
+  to a registry; instead hand-wrote a small Tailwind component set
+  (`apps/web/src/components/ui/primitives.tsx`, `Dialog.tsx`) with the same navy palette and a
+  similar API shape (`Button`, `Input`, `Select`, `Card`, `Modal`, `Drawer`, `ConfirmDialog`, …).
+  Functionally equivalent for this app's needs, without the CLI dependency.
+- **Added `GET /offices` and `GET /hosts`** — not in the original endpoint list, but the Invite
+  and Walk-in forms need an office dropdown and a host search, and no existing endpoint returns
+  either. Both are `requireAuth`-only (any signed-in role), read-only, no new write surface.
+- **Peak-hours chart is a bar chart by hour-of-day, not a 2D day×hour heatmap** — the ask was "peak
+  hours heatmap"; a true heatmap needs a day axis too, but `GET /admin/analytics` only bucketed by
+  hour (`peakHours: [{hour, count}]`). Kept the simpler shape rather than adding a second
+  aggregation query this late; documented here rather than silently downgrading the spec.
+- **Socket auth is a JWT passed in `handshake.auth.token`, refreshed by the client on
+  reconnect** — `getSocket()` re-reads the token from the in-memory store on every call so a
+  refreshed access token is picked up without the caller managing reconnect logic itself.
+- **No browser automation tool was available in this environment** to click through the running
+  UI. Verified instead by: full TypeScript strict-mode typecheck across `apps/web` (catches
+  prop-shape mismatches against the real API responses — confirmed several against live `curl`
+  output, e.g. `/offices`, `/hosts`, `/admin/analytics`, `/admin/audit`), a clean production
+  `vite build`, ESLint, and the dev server serving `index.html` / `main.tsx` correctly. A human
+  click-through is still recommended before treating any screen as fully verified.
