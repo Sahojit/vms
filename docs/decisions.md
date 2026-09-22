@@ -116,3 +116,54 @@ implementation detail.
   output, e.g. `/offices`, `/hosts`, `/admin/analytics`, `/admin/audit`), a clean production
   `vite build`, ESLint, and the dev server serving `index.html` / `main.tsx` correctly. A human
   click-through is still recommended before treating any screen as fully verified.
+  **Update (Phase 6):** Playwright's own bundled Chromium (installed via
+  `playwright install chromium`) _did_ end up exercising the real UI in a real browser — see
+  below. That's a different thing from an interactive MCP browser tool for manual driving, which
+  still wasn't available, but the login, invite, walk-in, board, and e-pass screens are now
+  confirmed working end-to-end, not just typechecked.
+
+## Phase 6
+
+- **Tests run against the live dev/demo Postgres**, not an isolated test database — this
+  environment has one Postgres container, and standing up a second (or a transactional-rollback
+  harness) was more setup than the time budget allowed. Every fixture `tests/helpers.ts` creates
+  is tagged (`Test Office …` / `@example.test` emails / `+1-…` phones) so
+  `tests/globalTeardown.ts` can find and delete exactly that data after the run, never touching
+  the real seeded rows. Running the suite is therefore safe against the demo DB, but not
+  parallel-safe across two simultaneous `pnpm test` runs.
+- **`src/app.ts` split out from `src/server.ts`** — `createApp()` returns the configured Express
+  app with no listening socket, so Supertest can hit it directly without binding a port (or
+  starting Socket.IO/the HTTP server) per test file.
+- **Bumped `vitest` to 5.0.1 in `apps/api` and `packages/shared`** (matching `latest`, not the
+  stale `^2.1.4` originally pinned in Phase 1) — needed to satisfy `@vitest/coverage-v8`'s peer
+  requirement. **Left `apps/web` on `vitest@2.1.9`**, because `vitest@5` requires
+  `vite@^6/7/8` and `apps/web` is on `vite@5.4` (upgrading Vite itself was out of scope for a
+  test-tooling change); `apps/web`'s tests don't need the coverage provider anyway.
+- **`packages/shared` and `apps/api` each gained a `tsconfig.build.json`** split from the
+  typecheck-time `tsconfig.json` — the latter now includes `tests/` (and `prisma/`, `e2e/`,
+  `playwright.config.ts` where relevant) for full-repo typechecking, while the build config stays
+  scoped to `src` so test files never leak into `dist/`.
+- **k6 scripts avoid `URLSearchParams`** — k6's JS runtime (goja) doesn't implement it; build
+  query strings by hand instead. Also had to cap the `checkin.js` load-test visitor phone to the
+  schema's 20-char limit (`newGuestSchema.phone`) — an earlier version generated a too-long phone
+  and every walk-in in the run 400'd instantly, producing a nonsensical 12,000 req/s "success"
+  number until traced back to a `VALIDATION_ERROR` on `phone`.
+- **`checkin.js` measures the check-in call specifically** (a k6 `Trend` metric), not the whole
+  iteration — each iteration also does a walk-in create and a host approve first (to produce a
+  fresh `APPROVED` visit to check in), and lumping those into the threshold would measure the
+  wrong thing.
+- **Playwright E2E tests use separate browser contexts per role**, not sequential `page.goto`
+  calls with different logins in the same context — the httpOnly refresh cookie persists across
+  navigation, so navigating to `/login` as a second user while the first user's session cookie is
+  still valid triggers `AuthContext`'s silent-refresh-on-mount and redirects away from the login
+  form before it renders, timing the test out. Separate `browser.newContext()` calls give each
+  role its own cookie jar.
+- **The invite E2E test uses `host2@vms.local`, not `host1`** — `host1` is the account used
+  throughout this session's manual `curl` testing (Phases 3-4) and its daily pre-approval quota
+  (5/day) was already exhausted by the time the E2E suite ran. This is a real product constraint
+  surfacing in test data hygiene, not a bug: re-running the invite E2E test enough times in one
+  day will eventually exhaust `host2`'s quota too.
+- **`WalkIn.tsx`'s host search now matches email as well as name** (was name-only) — surfaced by
+  writing the E2E test itself: searching "host1" against seed-generated random names (e.g. "Dr.
+  Evalyn Anderson") never matched anything, but a front-desk user searching by the part of a name
+  or email they remember is exactly the real use case that filter needs to serve.

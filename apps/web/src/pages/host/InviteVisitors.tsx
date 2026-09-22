@@ -227,7 +227,7 @@ export default function InviteVisitors() {
                 value={newGuestPhone}
                 onChange={(e) => setNewGuestPhone(e.target.value)}
               />
-              <Button variant="secondary" onClick={addNew} type="button">
+              <Button variant="secondary" onClick={addNew} type="button" aria-label="Add guest">
                 <UserPlus size={16} />
               </Button>
             </div>

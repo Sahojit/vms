@@ -5,8 +5,9 @@ full design (stack, data model, state machine, flows, complexity analysis).
 
 ## Status
 
-Phases 1-5 (scaffold/infra, data layer, API core, jobs/real-time, frontend) complete. Later phases
-add tests and docs polish — see [CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the phase plan.
+Phases 1-6 complete (scaffold/infra, data layer, API core, jobs/real-time, frontend, quality).
+Phase 7 (docs/demo polish) remains — see [CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the
+phase plan.
 
 ## API
 
@@ -44,6 +45,23 @@ with retake, file-upload fallback, existing-visitor autofill), Kiosk QR check-in
 (`html5-qrcode`), the public Visitor e-pass page (`/pass/:token`, printable), and Admin →
 Policies / Watchlist / Analytics (Recharts) / Audit Log. Every mutation shows a toast (`sonner`);
 lists have skeletons and empty states; destructive actions confirm first.
+
+## Quality
+
+- **API tests** (`apps/api/tests`, Vitest + Supertest): the full visit-status transition matrix,
+  the pre-approval Redis quota, QR single-use/expiry/window checks, a real concurrent
+  double-check-in race (only one of two parallel requests wins), RBAC 401/403, validation
+  errors, and the full walk-in → approve → check-in → check-out lifecycle. 91 tests,
+  **92% statement coverage on `src/services` + `src/domain`** (target was ≥80%).
+  Run: `pnpm --filter=@vms/api run test` (or `test:coverage` for the report).
+- **E2E tests** (`apps/web/e2e`, Playwright): _invite → e-pass → QR check-in → check-out_ and
+  _walk-in → host approves live → board updates_ (two real browser contexts, live Socket.IO
+  push verified, no polling). Run: `pnpm --filter=@vms/web run e2e` (needs the full stack up).
+- **Load tests** (`k6/`): search, board pagination, and the check-in hot path — all comfortably
+  under their latency thresholds. Results: [`docs/performance.md`](docs/performance.md).
+- **Query plans**: `EXPLAIN ANALYZE` for the three hottest queries (front-desk board, visitor
+  search, cursor pagination), confirming each uses the index it was designed for — also in
+  [`docs/performance.md`](docs/performance.md).
 
 ## Monorepo layout
 

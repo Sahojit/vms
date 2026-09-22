@@ -70,9 +70,10 @@ export default function WalkIn() {
     }
   }, [existingVisitor, phone]);
 
-  const filteredHosts = (hosts?.hosts ?? []).filter((h) =>
-    h.name.toLowerCase().includes(debouncedHostQuery.toLowerCase()),
-  );
+  const filteredHosts = (hosts?.hosts ?? []).filter((h) => {
+    const q = debouncedHostQuery.toLowerCase();
+    return h.name.toLowerCase().includes(q) || h.email.toLowerCase().includes(q);
+  });
 
   const startCamera = async () => {
     try {
