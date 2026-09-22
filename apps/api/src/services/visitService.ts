@@ -9,6 +9,8 @@ import { issuePass, verifyPassToken } from './passService.js';
 import { notify } from './notificationService.js';
 import { getPolicyNumber } from './policyService.js';
 import { schedulePendingExpiry, scheduleOverstayCheck } from '../jobs/queue.js';
+import { broadcastVisitEvent } from '../realtime/broadcast.js';
+import { SOCKET_EVENTS } from '../realtime/rooms.js';
 
 export async function createWalkIn(input: WalkInInput, photoUrl: string | null) {
   const visitorInput = input.visitorId ? { visitorId: input.visitorId } : input.visitor;
@@ -43,6 +45,7 @@ export async function createWalkIn(input: WalkInInput, photoUrl: string | null) 
   });
 
   await notify(input.hostId, 'VISIT_CREATED', { visitId: visit.id, visitorName: visitor.fullName });
+  broadcastVisitEvent(SOCKET_EVENTS.VISIT_CREATED, input.officeId, { visitId: visit.id });
 
   const timeoutMinutes = await getPolicyNumber('PENDING_APPROVAL_TIMEOUT_MINUTES', 30);
   await schedulePendingExpiry(visit.id, timeoutMinutes);
@@ -70,6 +73,7 @@ export async function approveVisit(visitId: string, actorId: string) {
 
   const { pass } = await issuePass(visitId, visit.windowEnd);
   await notify(visit.hostId, 'VISIT_APPROVED', { visitId });
+  broadcastVisitEvent(SOCKET_EVENTS.VISIT_UPDATED, visit.officeId, { visitId, status: 'APPROVED' });
   const updated = await visitRepository.findById(visitId);
   return { visit: updated, passId: pass.id };
 }
@@ -93,6 +97,7 @@ export async function rejectVisit(visitId: string, actorId: string, reason: stri
   });
 
   await notify(visit.hostId, 'VISIT_REJECTED', { visitId, reason });
+  broadcastVisitEvent(SOCKET_EVENTS.VISIT_REJECTED, visit.officeId, { visitId, reason });
   return visitRepository.findById(visitId);
 }
 
@@ -114,6 +119,10 @@ export async function cancelVisit(visitId: string, actorId: string) {
     });
   });
 
+  broadcastVisitEvent(SOCKET_EVENTS.VISIT_UPDATED, visit.officeId, {
+    visitId,
+    status: 'CANCELLED',
+  });
   return visitRepository.findById(visitId);
 }
 
@@ -135,6 +144,10 @@ export async function checkIn(visitId: string, actorId: string | null) {
 
   const overstayMinutes = await getPolicyNumber('OVERSTAY_MINUTES', 480);
   await scheduleOverstayCheck(visitId, overstayMinutes);
+  broadcastVisitEvent(SOCKET_EVENTS.VISIT_UPDATED, visit.officeId, {
+    visitId,
+    status: 'CHECKED_IN',
+  });
 
   return visitRepository.findById(visitId);
 }
@@ -167,6 +180,10 @@ export async function checkInWithPass(token: string) {
 
   const overstayMinutes = await getPolicyNumber('OVERSTAY_MINUTES', 480);
   await scheduleOverstayCheck(visit.id, overstayMinutes);
+  broadcastVisitEvent(SOCKET_EVENTS.VISIT_UPDATED, visit.officeId, {
+    visitId: visit.id,
+    status: 'CHECKED_IN',
+  });
 
   return visitRepository.findById(visit.id);
 }
@@ -187,6 +204,10 @@ export async function checkOut(visitId: string, actorId: string | null) {
     });
   });
 
+  broadcastVisitEvent(SOCKET_EVENTS.VISIT_UPDATED, visit.officeId, {
+    visitId,
+    status: 'CHECKED_OUT',
+  });
   return visitRepository.findById(visitId);
 }
 

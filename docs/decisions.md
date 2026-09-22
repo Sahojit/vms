@@ -71,3 +71,24 @@ implementation detail.
   parallel requests succeeds, the other gets `409 CONFLICT`), invite creation with the Redis
   quota decrementing, QR verify + single-use rejection, watchlist blocking, and admin
   policies/analytics/audit/pagination.
+
+## Phase 4
+
+- **Cross-process real-time push uses `@socket.io/redis-emitter`, not a shared `io` instance** —
+  the BullMQ worker runs in its own process (`src/worker.ts`) with no Socket.IO server of its
+  own. The Emitter publishes room events over the same Redis pub/sub channels the API server's
+  `@socket.io/redis-adapter` already subscribes to, so both the API (request handlers) and the
+  worker (job handlers) call the same `notify()` / `broadcastVisitEvent()` helpers regardless of
+  which process they run in.
+- **`notify()` fans out to three channels and never throws on channel failure** — in-app
+  `Notification` row (DB), email (Mailpit SMTP) and SMS (console mock) run in `Promise.all`, but
+  only the email provider wraps its own try/catch (logs a warning) since a flaky SMTP connection
+  is expected during local dev and must not fail the request/job that triggered the notification.
+- **OVERSTAY has no code path that writes `status = 'OVERSTAY'`** — ARCHITECTURE.md §5 calls it
+  "a derived flag," so `handleOverstayCheck` only calls `notify()` and pushes a
+  `visit.overstay` socket event; the visit's stored status stays `CHECKED_IN`.
+- **Verified end-to-end with a throwaway Socket.IO client** (connected with a real JWT, joined
+  `user:{hostId}`): a walk-in and an approve both arrived live as `visit.created` /
+  `visit.updated`. Also manually enqueued an `expire-pending` job at a 1s delay against a real
+  seeded visit and confirmed the worker flipped it to `EXPIRED` and logged "Job completed" —
+  the full delayed-job path works, not just the immediate one exercised by curl in Phase 3.

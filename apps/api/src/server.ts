@@ -1,14 +1,16 @@
 import { env } from './config/env.js';
 
+import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import { randomUUID } from 'node:crypto';
 import { pinoHttp } from 'pino-http';
 import { logger } from './lib/logger.js';
 import { apiRouter } from './routes/index.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
+import { attachSocketServer } from './realtime/io.js';
 
 const app = express();
 
@@ -31,6 +33,9 @@ app.use('/api/v1', apiRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(env.API_PORT, () => {
+const httpServer = http.createServer(app);
+attachSocketServer(httpServer);
+
+httpServer.listen(env.API_PORT, () => {
   logger.info(`API listening on :${env.API_PORT}`);
 });

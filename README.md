@@ -5,9 +5,9 @@ full design (stack, data model, state machine, flows, complexity analysis).
 
 ## Status
 
-Phase 1 (scaffold/infra), Phase 2 (data layer), and Phase 3 (API core) complete. Later phases add
-jobs/real-time, frontend screens, tests, and docs — see
-[CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the phase plan.
+Phases 1-4 (scaffold/infra, data layer, API core, jobs/real-time) complete. Later phases add
+frontend screens, tests, and docs — see [CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the
+phase plan.
 
 ## API
 
@@ -20,6 +20,19 @@ invites with an O(1) Redis daily quota, QR pass verify (single-use, HMAC-signed)
 check-out (idempotent via `Idempotency-Key`), cursor-paginated visit listing, host inbox/history,
 and admin policies/watchlist/analytics/audit. Try it with `curl` once the server and seed data
 are up — see the demo credentials below.
+
+## Jobs and real-time
+
+A separate worker process (`pnpm --filter=@vms/api run worker:dev`, or the `worker` service in
+`docker-compose.yml`) consumes a BullMQ `visits` queue: `expire-visit` (an unused APPROVED visit
+past its window), `expire-pending` (a host who never responded), and `overstay-check` (still
+`CHECKED_IN` past the overstay threshold — a derived flag, not a stored status, so this only
+notifies and pushes a socket event rather than changing the row). The API process schedules these
+jobs from the request path (walk-in, approve, check-in) so they're ready the moment the worker is
+running. Every visit event (`visit.created`, `visit.updated`, `visit.overstay`, `visit.rejected`)
+is pushed live over Socket.IO — rooms `user:{id}` and `office:{id}`, Redis adapter so it works
+across multiple API instances. Notifications fan out to three channels: an in-app `Notification`
+row, email via Mailpit (http://localhost:8025 to view), and a console-logged SMS mock.
 
 ## Monorepo layout
 
