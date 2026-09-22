@@ -4,9 +4,13 @@ import { z } from 'zod';
 
 dotenv.config({ path: path.join(import.meta.dirname, '..', '..', '..', '..', '.env') });
 
+// Render (and most PaaS hosts) inject the port to listen on as `PORT`, not `API_PORT` — fall
+// back to it so the same code works locally (API_PORT from .env) and on a host like Render.
+const DEFAULT_PORT = Number(process.env.PORT) || 4000;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  API_PORT: z.coerce.number().default(4000),
+  API_PORT: z.coerce.number().default(DEFAULT_PORT),
   API_URL: z.string().default('http://localhost:4000'),
   WEB_URL: z.string().default('http://localhost:5173'),
   DATABASE_URL: z.string(),
