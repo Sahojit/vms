@@ -37,3 +37,37 @@ implementation detail.
 - **Visit status/type distribution is weighted, not uniform** (`STATUS_WEIGHTS` in
   `prisma/seed.ts`), to resemble a real front-desk board (more `CHECKED_OUT`/`EXPIRED` than
   `CANCELLED`, for example) rather than an even split across all 7 statuses.
+
+## Phase 3
+
+- **`transition()` uses `updateMany` with an `UncheckedUpdateManyInput`**, not `update` — a
+  conditional `WHERE id = ? AND status = ? AND version = ?` needs `updateMany`, and Prisma's
+  "checked" update type for that method excludes foreign-key scalars like `decidedById` (it
+  expects a relation `connect`, which `updateMany` can't do). The unchecked variant allows
+  setting `decidedById` directly, matching what the conditional update actually needs.
+- **`/passes/verify` and `/passes/:token/public` are public + rate-limited, not
+  `requireAuth`** — the kiosk and visitor e-pass page have no login per ARCHITECTURE.md §3
+  ("Visitor (no login)"), so they're gated by `publicRateLimiter` instead.
+- **In-app notifications only in Phase 3** (`notificationService.notify` just writes a
+  `Notification` row) — Email (Mailpit) and SMS (console) providers and the Socket.IO push
+  land in Phase 4 per the plan; wiring the interface now would mean rewriting it once the queue
+  exists.
+- **BullMQ job _producers_ (`src/jobs/queue.ts`) were added in Phase 3, not Phase 4** — invite
+  creation, walk-in creation, and check-in all need to schedule delayed jobs (expiry, overstay)
+  to be functionally complete, so the `Queue` and `scheduleX()` functions exist now. The
+  `Worker` that consumes them is Phase 4 (jobs currently queue but nothing processes them yet).
+  BullMQ job IDs can't contain `:`, only URL-safe chars — used `expire-visit-<id>` not
+  `expire-visit:<id>`.
+- **`tsx watch` restricted to `--watch-path ./src`** — by default it also watched
+  `node_modules` on this machine (first-touch lazy loads from `minio`/`bullmq` triggered restart
+  loops), which no `tsx` flag ignores by pattern; scoping the watch path to `src` was simpler
+  than an ignore-list.
+- **Express 5's `ParamsDictionary` types every value as `string | string[]`** (to support
+  repeated wildcard segments) — added `src/lib/params.ts#requireParam` instead of non-null
+  asserting `req.params.id!`, which doesn't fix the underlying type.
+- **Verified by hand against the live seeded DB, not yet by an automated test** (Phase 6 adds
+  Vitest/Supertest coverage): login, RBAC 401/403, visitor trigram + exact search, walk-in →
+  approve → check-in → check-out, a concurrent double check-in (confirmed only one of two
+  parallel requests succeeds, the other gets `409 CONFLICT`), invite creation with the Redis
+  quota decrementing, QR verify + single-use rejection, watchlist blocking, and admin
+  policies/analytics/audit/pagination.

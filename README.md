@@ -5,9 +5,21 @@ full design (stack, data model, state machine, flows, complexity analysis).
 
 ## Status
 
-Phase 1 (scaffold and infra) and Phase 2 (data layer) complete. Later phases add the API,
+Phase 1 (scaffold/infra), Phase 2 (data layer), and Phase 3 (API core) complete. Later phases add
 jobs/real-time, frontend screens, tests, and docs — see
 [CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the phase plan.
+
+## API
+
+`apps/api` is layered `routes → controllers → services → repositories`, with the visit state
+machine (`src/domain/visitStateMachine.ts`) as the single choke point for status changes — every
+transition runs inside a Prisma transaction with an optimistic `version` check and writes an
+AuditLog row. All endpoints from ARCHITECTURE.md §3 are implemented under `/api/v1`: auth
+(JWT access + httpOnly refresh cookie), visitor search, walk-in/approve/reject/cancel,
+invites with an O(1) Redis daily quota, QR pass verify (single-use, HMAC-signed), check-in/
+check-out (idempotent via `Idempotency-Key`), cursor-paginated visit listing, host inbox/history,
+and admin policies/watchlist/analytics/audit. Try it with `curl` once the server and seed data
+are up — see the demo credentials below.
 
 ## Monorepo layout
 
