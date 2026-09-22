@@ -167,3 +167,32 @@ implementation detail.
   writing the E2E test itself: searching "host1" against seed-generated random names (e.g. "Dr.
   Evalyn Anderson") never matched anything, but a front-desk user searching by the part of a name
   or email they remember is exactly the real use case that filter needs to serve.
+
+## Phase 7
+
+- **Database reseeded before final screenshots** — by this point in the session the demo DB had
+  accumulated real rows from every manual `curl` test (Phases 3-4), the k6 checkin load test
+  (~1,100 extra walk-ins), and the Playwright suites. The first Analytics screenshot showed an
+  obviously-wrong single-day spike in "visits per day" because of this. `TRUNCATE` +
+  `db:seed` restored the clean 3-office/2,000-visitor/5,000-visit dataset the assignment
+  describes before capturing the screenshots that ship in the README.
+- **`apps/web` needed its own `vitest.config.ts`** (`include: ['tests/**/*.test.ts']`) — without
+  one, `vitest run` picked up `e2e/*.spec.ts` too and failed immediately, since Playwright's
+  `test.describe` isn't valid outside the Playwright test runner. `apps/api`'s `vitest.config.ts`
+  already scoped `include` to `tests/`, so it never hit this; `apps/web` was missing the same
+  guard until this surfaced via `pnpm -r run test`.
+- **Removed `docs/screenshots/*.png` from `.gitignore`** — that entry was written in Phase 1
+  before any screenshots existed, on the assumption they'd be handled separately. Now that
+  Playwright captures real screenshots referenced directly in the README (`docs/screenshots.spec.ts`
+  → 13 PNGs, ~1.9 MB total), they need to be committed for the README to render on GitHub/anywhere
+  else the repo is viewed without re-running the capture script.
+- **The pie chart in Analytics briefly looked broken in a screenshot** (empty "By visit type"
+  panel) — it wasn't: Recharts animates pie slices in, and the screenshot script's fixed 400ms
+  settle delay fired before the animation finished. Confirmed via DOM inspection (the `<path>`
+  elements were there, correctly colored) before concluding it was a timing issue, not a bug;
+  fixed by giving that one page a longer wait before capture rather than "fixing" code that
+  wasn't broken.
+- **API reference, error code, and complexity tables in the README are hand-maintained**, not
+  generated from the OpenAPI/Zod schemas — there's no OpenAPI spec in this project (not asked
+  for), so these tables should be kept in sync by hand if endpoints change; noted here so a
+  future change to `src/routes/` doesn't silently drift from the README.

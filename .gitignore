@@ -10,6 +10,5 @@ coverage/
 apps/web/dist/
 apps/api/dist/
 packages/shared/dist/
-docs/screenshots/*.png
 playwright-report/
 test-results/
