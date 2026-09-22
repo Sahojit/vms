@@ -10,6 +10,7 @@ RUN pnpm install --frozen-lockfile || pnpm install
 
 FROM deps AS build
 COPY . .
+RUN pnpm --filter=@vms/api exec prisma generate
 RUN pnpm --filter=@vms/shared run build && pnpm --filter=@vms/api run build
 
 FROM base AS runner
@@ -19,4 +20,4 @@ COPY --from=build /repo/packages/shared ./packages/shared
 COPY --from=build /repo/apps/api ./apps/api
 WORKDIR /repo/apps/api
 EXPOSE 4000
-CMD ["node", "dist/server.js"]
+CMD ["sh", "-c", "prisma migrate deploy && node dist/server.js"]

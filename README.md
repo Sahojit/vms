@@ -5,9 +5,9 @@ full design (stack, data model, state machine, flows, complexity analysis).
 
 ## Status
 
-Phase 1 (scaffold and infra) complete. Later phases add the data layer, API, jobs/real-time,
-frontend screens, tests, and docs — see [CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the
-phase plan.
+Phase 1 (scaffold and infra) and Phase 2 (data layer) complete. Later phases add the API,
+jobs/real-time, frontend screens, tests, and docs — see
+[CLAUDE_CODE_PROMPT.md](CLAUDE_CODE_PROMPT.md) for the phase plan.
 
 ## Monorepo layout
 
@@ -27,13 +27,31 @@ docs/         # performance notes, decisions, demo script, screenshots
 ```bash
 cp .env.example .env
 pnpm install
-pnpm dev            # runs api (:4000) and web (:5173) locally
-# or
-docker compose up   # full containerized demo
+docker compose up -d postgres redis minio mailpit   # infra only, for local dev
+pnpm --filter=@vms/api run db:migrate:deploy         # apply migrations (incl. pg_trgm index)
+pnpm --filter=@vms/api run db:seed                   # 3 offices, 2,000 visitors, 5,000 visits
+pnpm dev                                              # runs api (:4000) and web (:5173)
+# or, for the full containerized demo:
+docker compose up
 ```
+
+> If port 5432/6379/etc. already have something running locally, edit the `*_PORT` variables in
+> `.env` before starting the containers — `docker-compose.yml` reads every port from `.env`.
 
 ## Scripts
 
 - `pnpm dev` — run all apps in watch mode
 - `pnpm build` — build shared package then all apps
 - `pnpm lint` / `pnpm typecheck` / `pnpm test` — run across every workspace package
+- `pnpm --filter=@vms/api run db:migrate` — create/apply a Prisma migration (interactive)
+- `pnpm --filter=@vms/api run db:studio` — browse the database in Prisma Studio
+
+## Demo credentials
+
+Every seeded user shares the same password: **`Passw0rd!`**
+
+| Role                      | Email                                         |
+| ------------------------- | --------------------------------------------- |
+| Admin                     | `admin@vms.local`                             |
+| Security (one per office) | `security1@vms.local` … `security3@vms.local` |
+| Host                      | `host1@vms.local` … `host25@vms.local`        |

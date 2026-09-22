@@ -1,3 +1,8 @@
+import path from 'node:path';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: path.join(import.meta.dirname, '..', '..', '..', '.env') });
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
