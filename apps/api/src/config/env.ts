@@ -37,6 +37,13 @@ const envSchema = z.object({
   PENDING_APPROVAL_TIMEOUT_MINUTES: z.coerce.number().default(30),
   PUBLIC_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000),
   PUBLIC_RATE_LIMIT_MAX: z.coerce.number().default(30),
+  // On, by default, so a single free-tier web service (no separate worker process/plan
+  // available) still processes delayed jobs. Set to "false" when a real standalone worker
+  // (`src/worker.ts`) is also running, to avoid double-processing the same queue.
+  RUN_WORKER_INLINE: z
+    .string()
+    .default('true')
+    .transform((v) => v === 'true'),
 });
 
 export const env = envSchema.parse(process.env);

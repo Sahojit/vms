@@ -196,3 +196,51 @@ implementation detail.
   generated from the OpenAPI/Zod schemas — there's no OpenAPI spec in this project (not asked
   for), so these tables should be kept in sync by hand if endpoints change; noted here so a
   future change to `src/routes/` doesn't silently drift from the README.
+
+## Deployment (Render + Vercel)
+
+- **`RUN_WORKER_INLINE` (default `true`) — the BullMQ worker runs inside `src/server.ts`, not
+  only as the standalone `src/worker.ts` process.** Render's free plan does not offer a
+  Background Worker service type at all (`services create --type background_worker` and the
+  equivalent `render.yaml` `type: worker` both fail with "service type is not available for this
+  plan"), so a separate `vms-worker` service can never exist on this account without paying.
+  `src/jobs/startWorker.ts` was extracted so both entry points share the same BullMQ `Worker`
+  setup — `apps/api/src/worker.ts` still exists for anyone who _does_ have a host that supports a
+  real separate worker process (set `RUN_WORKER_INLINE=false` on the web service to avoid running
+  it twice there). `render.yaml` no longer declares a `vms-worker` service for this reason.
+- **Dockerfile `CMD` runs the seed script on every boot, gated by an idempotency check**
+  (`prisma/seed.ts` counts existing users and returns immediately if any exist) — Render's free
+  tier doesn't support one-off Jobs (`render jobs create` fails the same "not available for this
+  plan" way) and `render ssh` refuses to run non-interactively, so there was no way to run the
+  seed script once, out-of-band, after the first deploy. Running it idempotently on every boot
+  was the only remaining option; the count() check keeps subsequent boots to one cheap query.
+- **`apps/api/Dockerfile`'s `CMD` calls `./node_modules/.bin/prisma` and
+  `./node_modules/.bin/tsx` by relative path, not bare `prisma`/`tsx`** — both are
+  devDependencies, reachable via `pnpm exec`/`npx` in a shell with pnpm on `PATH`, but the
+  container's runtime `sh -c "..."` has neither; the very first deploy failed with
+  `sh: prisma: not found` (exit 127) until this was fixed.
+- **`apps/api/src/config/env.ts`'s `API_PORT` falls back to `process.env.PORT`** before its
+  `4000` default — Render (like most PaaS hosts) injects the port to listen on as `PORT`, and the
+  app was originally hardcoded to `API_PORT` from `.env` only.
+- **Root `vercel.json` sets explicit `installCommand`/`buildCommand`/`outputDirectory`** instead
+  of letting Vercel auto-detect a Vite project — auto-detect assumed the linked directory
+  (`apps/web`) was a standalone project and ran plain `npm install` there, which can't resolve
+  the `workspace:*` dependency on `@vms/shared`. The explicit config runs `pnpm install` and both
+  package builds from the monorepo root.
+- **`vercel.json` also needs a SPA catch-all rewrite** (`"rewrites": [{"source": "/(.*)",
+"destination": "/index.html"}]`) — React Router handles routes like `/login` client-side, but
+  without the rewrite, Vercel's static file server 404s on any direct navigation or refresh to a
+  non-root path (it looks for a literal file at that path, finds none).
+- **The Vercel project (`vms-web`) was deployed via `vercel --prod` from an authenticated CLI
+  session, not Git-connected** — a different, inaccessible Vercel account already had a stale
+  deployment at a similar URL from earlier manual testing; rather than chase access to that
+  account, a fresh project was linked and deployed from this session, which this session fully
+  controls (env vars, redeploys, etc.). Because it isn't Git-connected, a `git push` alone does
+  **not** trigger a Vercel redeploy — `vercel --prod` must be re-run manually after any
+  `apps/web`-affecting change (or the project can be connected to GitHub later via the dashboard
+  for auto-deploy).
+- **Photo upload (MinIO) and outbound email (SMTP/Mailpit) are not wired up in production** —
+  both fail soft (the email provider catches and logs a warning; MinIO's `ensureBucket()` would
+  throw only if a walk-in photo is actually attached, which is an optional field). No R2/S3
+  bucket or SMTP relay has been provisioned for this deployment; login, invites, walk-ins
+  (without a photo), check-in/out, real-time updates, and analytics all work without them.
