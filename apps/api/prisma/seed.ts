@@ -57,6 +57,14 @@ function pickStatus(): VisitStatus {
 }
 
 async function main() {
+  const existingUsers = await prisma.user.count();
+  if (existingUsers > 0) {
+    console.log(
+      `Database already has ${existingUsers} users — skipping seed (idempotent boot check).`,
+    );
+    return;
+  }
+
   console.log('Seeding policies...');
   await prisma.policy.createMany({
     data: [

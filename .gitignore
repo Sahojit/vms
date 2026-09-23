@@ -11,4 +11,5 @@ apps/web/dist/
 apps/api/dist/
 packages/shared/dist/
 playwright-report/
+.vercel
 test-results/
